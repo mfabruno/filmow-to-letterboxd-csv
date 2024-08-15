@@ -45,6 +45,48 @@ namespace FilmowToLetterboxdCSV
             return result;
         }
 
+        public static async Task<Movie> ExtractMovieDetailsAsync(this IBrowsingContext context, string link, string rating)
+        {
+            Console.WriteLine($"\n{link}");
+
+            using var document = await context.OpenAsync($"https://filmow.com{link}");
+
+            var title = document.QuerySelectorAll("div.movie-other-titles > ul > li")?
+                .Select(li =>
+                {
+                    if (li.QuerySelector("em")?.TextContent == "Estados Unidos da América")
+                    {
+                        var text = li.QuerySelector("strong")?.TextContent ?? string.Empty;
+                        return RegexIsASCII().IsMatch(text) ? text : null;
+                    }
+
+                    return null;
+                })
+                .FirstOrDefault(title => !string.IsNullOrEmpty(title));
+
+            if (string.IsNullOrEmpty(title))
+            {
+                var text = document.QuerySelector("div.movie-title > div > h2.movie-original-title")?.TextContent ?? string.Empty;
+                title = RegexIsASCII().IsMatch(text) ? text : null;
+            }
+
+            if (string.IsNullOrEmpty(title))
+                title = document.QuerySelector("div.movie-title > h1")?.TextContent;
+
+            if (string.IsNullOrEmpty(title)) return null!;
+
+            var year = document.QuerySelector("small.release")!.TextContent;
+
+            var director = document.QuerySelector("div.directors > span > a > span[itemprop='name']")?.TextContent ?? string.Empty;
+
+            var movie = new Movie(title, director, year, rating);
+
+            if (title.Contains(","))
+                title = $"\"{title}\"";
+
+            return movie;
+        }
+
         internal async static Task<IEnumerable<Movie>> ExtractMovieDeatils(this IBrowsingContext context, IEnumerable<(string link, string rating)> links)
         {
             List<Movie> result = [];
